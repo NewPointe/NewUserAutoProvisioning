@@ -8,20 +8,27 @@ function main
     New-Variable -Name NewUserName
     New-Variable -Name NewMI
     New-Variable -Name NewWorkPhone
+    New-Variable -Name NewWorkPhoneE164
     New-Variable -Name NewMobilePhone
     New-Variable -Name NewEmailAddress1
     New-Variable -Name NewEmailAddress2
+    New-Variable -Name NewSupervisor
+    New-Variable -Name NewOffice
+    New-Variable -Name NewDepartment
 
     #First off, let's get some credentials stored so we can run this stuff.
     #   $scriptcred = Get-Credential
 
     #Import the Active Directory module and then start running functions.
     Import-Module ActiveDirectory
-    GetUserName ([ref]$NewFirstName) ([ref]$NewLastName) ([ref]$NewMI) ([ref]$NewDisplayName) ([ref]$NewUserName)
-    GetWorkPhone ([ref]$NewFirstName) ([ref]$NewWorkPhone)
+    GetUserName ([ref]$NewFirstName) ([ref]$NewLastName) ([ref]$NewMI) ([ref]$NewDisplayName) ([ref]$NewUserName) 
+    GetWorkPhone ([ref]$NewFirstName) ([ref]$NewWorkPhone) ([ref]$NewWorkPhoneE164)
     GetMobilePhone ([ref]$NewFirstName) ([ref]$NewMobilePhone)
     MakeEmailAddresses ([ref]$NewFirstName) ([ref]$NewLastName) ([ref]$NewUserName) ([ref]$NewEmailAddress1) ([ref]$NewEmailAddress2)
-
+    GetOffice ([ref]$NewFirstName) ([ref]$NewOffice)
+    GetDepartment ([ref]$NewFirstName [ref]$NewDepartment)
+    GetSupervisor ([ref]$NewFirstName) ([ref]$NewSupervisor)
+    
     Write-Host "`n"
     Write-Host "Here are the results!"
     Write-Host "------------------------"
@@ -31,9 +38,11 @@ function main
     Write-Host "Last Name: $NewLastName"
     Write-Host "Display Name: $NewDisplayName"
     Write-Host "Work Phone: $NewWorkPhone"
+    Write-Host "Work Phone (E164): $NewWorkPhoneE164"
     Write-Host "Mobile Phone: $NewMobilePhone"
     Write-Host "Primary Email Address: $NewEmailAddress1"
     Write-Host "Secondary Email Address: $NewEmailAddress2"
+    Write-Host "Supervisor Username: $NewSupervisor"
 
 }
 
@@ -101,7 +110,7 @@ function GetUserName( [ref]$NewFirstName, [ref]$NewLastName, [ref]$NewMI, [ref]$
     }
 }
 
-function GetWorkPhone( [ref]$NewFirstName, [ref]$NewWorkPhone )
+function GetWorkPhone( [ref]$NewFirstName, [ref]$NewWorkPhone, [ref]$NewWorkPhoneE164 )
 {
     $UserName = $NewFirstName.Value
     $WorkPhoneVerified = $false
@@ -115,11 +124,13 @@ function GetWorkPhone( [ref]$NewFirstName, [ref]$NewWorkPhone )
             $NewWorkPhone.Value = "+1 (" + $NewWorkPhoneAreaCode + ") " + $NewWorkPhoneExchange + "-" + $NewWorkPhoneExt
             $WorkPhoneCompare = $NewWorkPhone.Value
             Write-Host  "Checking to see if $WorkPhoneCompare already exists..."
-            $TestWorkPhone = Get-ADUser -Filter {(OfficePhone -eq $WorkPhoneCompare)}
+            $TestWorkPhone = Get-ADUser -Filter {((OfficePhone -eq $WorkPhoneCompare) -or (MobilePhone -eq $WorkPhoneCompare))}
             Sleep -Seconds 1
             If ($TestWorkPhone -eq $null) {
                 $WorkPhoneVerified = $true
                 Write-Host "$WorkPhoneCompare is unique. Good to go!" -ForegroundColor Green
+                $NewWorkPhoneE164.Value = "tel:+1" + $NewWorkPhoneAreaCode + $NewWorkPhoneExchange + $NewWorkPhoneExt
+                Write-Host "E.164-Formatted phone number will be "$NewWorkPhoneE164.Value -ForegroundColor Yellow
             }
             Else {
                 Write-Host "The phone number $WorkPhoneCompare is already present in AD. Please use a different number." -ForegroundColor Red
@@ -148,7 +159,7 @@ function GetMobilePhone( [ref]$NewFirstName, [ref]$NewMobilePhone )
             $NewMobilePhone.Value = "+1 (" + $NewMobilePhoneAreaCode + ") " + $NewMobilePhoneExchange + "-" + $NewMobilePhoneExt
             $MobilePhoneCompare = $NewMobilePhone.Value
             Write-Host  "Checking to see if $MobilePhoneCompare already exists..."
-            $TestMobilePhone = Get-ADUser -Filter {(MobilePhone -eq $MobilePhoneCompare)}
+            $TestMobilePhone = Get-ADUser -Filter {((OfficePhone -eq $MobilePhoneCompare) -or (MobilePhone -eq $MobilePhoneCompare))}
             Sleep -Seconds 1
             If ($TestMobilePhone -eq $null) {
                 $MobilePhoneVerified = $true
@@ -169,7 +180,8 @@ function GetMobilePhone( [ref]$NewFirstName, [ref]$NewMobilePhone )
 function MakeEmailAddresses( [ref]$NewFirstName, [ref]$NewLastName, [ref]$NewUserName, [ref]$NewEmailAddress1, [ref]$NewEmailAddress2 )
 {
     $UserName = $NewFirstName.Value
-    Do {
+    Do 
+    {
         Write-Host "
         --- Please select an email domain for $UserName ---
         1. newpointe.org
@@ -193,10 +205,147 @@ function MakeEmailAddresses( [ref]$NewFirstName, [ref]$NewLastName, [ref]$NewUse
             Write-Host "Email Address 2: "$NewEmailAddress2.Value
             Write-Host "`n"
         }
-        "2" {$NewEmailAddress.Value = $null
+        "2" {
+            $NewEmailAddress1.Value = $null
+            $NewEmailAddress2.Value = $null
             Write-Host "OK, no email address for $UserName then.`n"}
         }
         Sleep -Seconds 1   
     }
+
+function GetOffice( [ref]$NewFirstName, [ref]$NewOffice )
+{
+    $UserName = $NewFirstName.Value
+    $NewOfficeVerified = $false
+    Do
+    {
+    Do 
+    {
+        Write-Host "
+        --- Please select the campus that $UserName will be at: ---
+        1. Central Services
+        2. Akron
+        3. Canton
+        4. Coshocton
+        5. Dover
+        6. Millersburg
+        7. Wooster
+        "
+        $choice1 = Read-Host -Prompt "Make a selection and press Enter"
+    }
+    Until ($choice1 -ln 1..7)
+        Switch ($choice1) {
+        "1" {$OfficeChoice = "Central Services"}
+        "2" {$OfficeChoice = "Akron Campus"}
+        "3" {$OfficeChoice = "Canton Campus"}
+        "4" {$OfficeChoice = "Coshocton Campus"}
+        "5" {$OfficeChoice = "Dover Campus"}
+        "6" {$OfficeChoice = "Millersburg Campus"}
+        "7" {$OfficeChoice = "Wooster Campus"}
+    }
+    Write-Host "You selected "$OfficeChoice". Is this what you want? (Y or N): " -ForegroundColor Yellow -NoNewline
+    $NewOfficeConfirmation = Read-Host
+    $NewOfficeConfirmation = $NewOfficeConfirmation.ToLower()
+    If ($NewOfficeConfirmation -eq "y")
+        {
+            $NewOffice.Value = $OfficeChoice
+            $NewOfficeVerified = $true
+            Sleep -Seconds 1
+        }
+    }
+    Until ($NewOfficeVerified -eq $true)
+}
+
+function GetDepartment( [ref]$NewFirstName, [ref]$NewDepartment )
+{
+    $UserName = $NewFirstName.Value
+    $NewDepartmentVerified = $false
+    Do 
+    {
+        Write-Host "
+        --- Please select the department that $UserName will be in: ---
+        1. Adult Ministries
+        2. Business Operations
+        3. Communications
+        4. Creative Arts
+        5. Executive Team
+        6. Facilities
+        7. Family Life
+        8. Student Ministries
+        "
+        $choice1 = Read-Host -Prompt "Make a selection and press Enter"
+    }
+    Until ($choice1 -ln 1..9)
+        Switch ($choice1) {
+        "1" {$DepartmentChoice = "Adult Ministries"}
+        "2" {$DepartmentChoice = "Business Operations"}
+        "3" {$DepartmentChoice = "Communications"}
+        "4" {$DepartmentChoice = "Creative Arts"}
+        "5" {$DepartmentChoice = "Executive Team"}
+        "6" {$DepartmentChoice = "Facilities"}
+        "7" {$DepartmentChoice = "Family Life"}
+        "8" {$DepartmentChoice = "Student Ministries"}
+    }
+        Write-Host "You selected "$DepartmentChoice". Is this what you want? (Y or N): " -ForegroundColor Yellow -NoNewline
+    $NewDepartmentConfirmation = Read-Host
+    $NewDepartmentConfirmation = $NewDepartmentConfirmation.ToLower()
+    If ($NewDepartmentConfirmation -eq "y")
+        {
+            $NewDepartment.Value = $DepartmentChoice
+            $NewDepartmentVerified = $true
+            Sleep -Seconds 1
+        }
+    }
+    Until ($NewDepartmentVerified -eq $true)
+}
+
+
+function GetSupervisor( [ref]$NewFirstName, [ref]$NewSupervisor )
+{
+    $SupervisorVerified = $false
+    $UserName = $NewFirstName.Value
+    Do
+    {
+        Write-Host "Enter the username of the person that $UserName will be reporting to: " -NoNewline -ForegroundColor White
+        $InputSupervisor = Read-Host
+        If ($InputSupervisor -ne [string]::Empty)
+        {
+            Write-Host "`n"
+            Sleep -Seconds 1
+            $SearchResult = Get-ADUser -Filter {(sAMAccountName -eq $InputSupervisor)}
+            If ($SearchResult -ne $null)
+            {
+                $SupervisorName = $SearchResult.Name
+                Write-Host "The person you selected as $UserName's supervisor is $SupervisorName. Is this correct? (Y or N): " -NoNewline -ForegroundColor Yellow
+                $SupervisorConfirmation = Read-Host
+                $SupervisorConfirmation = $SupervisorConfirmation.ToLower()
+                If ($SupervisorConfirmation -eq "y")
+                {
+                    $NewSupervisor.Value = $SearchResult.SamAccountName
+                    $SupervisorVerified = $true
+                }
+            }
+            Else
+            {
+                Write-Host "No user found with this username. Please try again"
+                Sleep -Seconds 1
+            }
+        }
+        Else
+        {
+            Write-Host "You left the supervisor field blank. Are you sure you want to assign $UserName with no supervisor? (Y or N): " -NoNewline -ForegroundColor Yellow
+            $SupervisorConfirmation = Read-Host
+            Write-Host "`n"
+            $SupervisorConfirmation = $SupervisorConfirmation.ToLower()
+            If ($SupervisorConfirmation -eq "y")
+            {
+                $NewSupervisor.Value = $null
+                $SupervisorVerified = $true
+            }
+        }
+    }
+    Until ($SupervisorVerified -eq $true)
+}
+
 
     main
