@@ -1,4 +1,4 @@
-function main
+function CollectInfo
 {
 
     #Set variables that we'll need to pass between functions.
@@ -13,8 +13,10 @@ function main
     New-Variable -Name NewEmailAddress1
     New-Variable -Name NewEmailAddress2
     New-Variable -Name NewSupervisor
+    New-Variable -Name NewSupervisorFullname
     New-Variable -Name NewOffice
     New-Variable -Name NewDepartment
+    New-Variable -Name NewJobTitle
 
     #First off, let's get some credentials stored so we can run this stuff.
     #   $scriptcred = Get-Credential
@@ -22,27 +24,33 @@ function main
     #Import the Active Directory module and then start running functions.
     Import-Module ActiveDirectory
     GetUserName ([ref]$NewFirstName) ([ref]$NewLastName) ([ref]$NewMI) ([ref]$NewDisplayName) ([ref]$NewUserName) 
+    GetJobTitle ([ref]$NewFirstName) ([ref]$NewJobTitle)
+    GetDepartment ([ref]$NewFirstName) ([ref]$NewDepartment)
+    GetOffice ([ref]$NewFirstName) ([ref]$NewOffice)
+    GetSupervisor ([ref]$NewFirstName) ([ref]$NewSupervisor) ([ref]$NewSupervisorFullname)
     GetWorkPhone ([ref]$NewFirstName) ([ref]$NewWorkPhone) ([ref]$NewWorkPhoneE164)
     GetMobilePhone ([ref]$NewFirstName) ([ref]$NewMobilePhone)
     MakeEmailAddresses ([ref]$NewFirstName) ([ref]$NewLastName) ([ref]$NewUserName) ([ref]$NewEmailAddress1) ([ref]$NewEmailAddress2)
-    GetOffice ([ref]$NewFirstName) ([ref]$NewOffice)
-    GetDepartment ([ref]$NewFirstName [ref]$NewDepartment)
-    GetSupervisor ([ref]$NewFirstName) ([ref]$NewSupervisor)
+
+
     
     Write-Host "`n"
-    Write-Host "Here are the results!"
+    Write-Host "Alright, here's the information you've supplied. Please look it over and make sure it's correct."
     Write-Host "------------------------"
     Write-Host "User Name: $NewUserName"
     Write-Host "First Name: $NewFirstName"
     Write-Host "Middle Initial: $NewMI"
     Write-Host "Last Name: $NewLastName"
     Write-Host "Display Name: $NewDisplayName"
+    Write-Host "Title: $NewJobTitle"
+    Write-Host "Department: $NewDepartment"
+    Write-Host "Campus: $NewOffice"
+    Write-Host "Supervisor: $NewSupervisorFullname ($NewSupervisor)"
+    Write-Host "Primary Email Address: $NewEmailAddress1"
+    Write-Host "Secondary Email Address: $NewEmailAddress2"
     Write-Host "Work Phone: $NewWorkPhone"
     Write-Host "Work Phone (E164): $NewWorkPhoneE164"
     Write-Host "Mobile Phone: $NewMobilePhone"
-    Write-Host "Primary Email Address: $NewEmailAddress1"
-    Write-Host "Secondary Email Address: $NewEmailAddress2"
-    Write-Host "Supervisor Username: $NewSupervisor"
 
 }
 
@@ -219,34 +227,34 @@ function GetOffice( [ref]$NewFirstName, [ref]$NewOffice )
     $NewOfficeVerified = $false
     Do
     {
-    Do 
-    {
-        Write-Host "
-        --- Please select the campus that $UserName will be at: ---
-        1. Central Services
-        2. Akron
-        3. Canton
-        4. Coshocton
-        5. Dover
-        6. Millersburg
-        7. Wooster
-        "
-        $choice1 = Read-Host -Prompt "Make a selection and press Enter"
-    }
-    Until ($choice1 -ln 1..7)
+        Do 
+        {
+            Write-Host "
+            --- Please select the campus that $UserName will be at: ---
+            1. Central Services
+            2. Akron
+            3. Canton
+            4. Coshocton
+            5. Dover
+            6. Millersburg
+            7. Wooster
+            "
+            $choice1 = Read-Host -Prompt "Make a selection and press Enter"
+        }
+        Until ($choice1 -In 1..7)
         Switch ($choice1) {
-        "1" {$OfficeChoice = "Central Services"}
-        "2" {$OfficeChoice = "Akron Campus"}
-        "3" {$OfficeChoice = "Canton Campus"}
-        "4" {$OfficeChoice = "Coshocton Campus"}
-        "5" {$OfficeChoice = "Dover Campus"}
-        "6" {$OfficeChoice = "Millersburg Campus"}
-        "7" {$OfficeChoice = "Wooster Campus"}
-    }
-    Write-Host "You selected "$OfficeChoice". Is this what you want? (Y or N): " -ForegroundColor Yellow -NoNewline
-    $NewOfficeConfirmation = Read-Host
-    $NewOfficeConfirmation = $NewOfficeConfirmation.ToLower()
-    If ($NewOfficeConfirmation -eq "y")
+            "1" {$OfficeChoice = "Central Services"}
+            "2" {$OfficeChoice = "Akron Campus"}
+            "3" {$OfficeChoice = "Canton Campus"}
+            "4" {$OfficeChoice = "Coshocton Campus"}
+            "5" {$OfficeChoice = "Dover Campus"}
+            "6" {$OfficeChoice = "Millersburg Campus"}
+            "7" {$OfficeChoice = "Wooster Campus"}
+        }
+        Write-Host "You selected "$OfficeChoice". Is this what you want? (Y or N): " -ForegroundColor Yellow -NoNewline
+        $NewOfficeConfirmation = Read-Host
+        $NewOfficeConfirmation = $NewOfficeConfirmation.ToLower()
+        If ($NewOfficeConfirmation -eq "y")
         {
             $NewOffice.Value = $OfficeChoice
             $NewOfficeVerified = $true
@@ -260,36 +268,38 @@ function GetDepartment( [ref]$NewFirstName, [ref]$NewDepartment )
 {
     $UserName = $NewFirstName.Value
     $NewDepartmentVerified = $false
-    Do 
+    Do
     {
-        Write-Host "
-        --- Please select the department that $UserName will be in: ---
-        1. Adult Ministries
-        2. Business Operations
-        3. Communications
-        4. Creative Arts
-        5. Executive Team
-        6. Facilities
-        7. Family Life
-        8. Student Ministries
-        "
-        $choice1 = Read-Host -Prompt "Make a selection and press Enter"
-    }
-    Until ($choice1 -ln 1..9)
+        Do 
+        {
+            Write-Host "
+            --- Please select the department that $UserName will be in: ---
+            1. Adult Ministries
+            2. Business Operations
+            3. Communications
+            4. Creative Arts
+            5. Executive Team
+            6. Facilities
+            7. Family Life
+            8. Student Ministries
+            "
+            $choice1 = Read-Host -Prompt "Make a selection and press Enter"
+        }
+        Until ($choice1 -In 1..9)
         Switch ($choice1) {
-        "1" {$DepartmentChoice = "Adult Ministries"}
-        "2" {$DepartmentChoice = "Business Operations"}
-        "3" {$DepartmentChoice = "Communications"}
-        "4" {$DepartmentChoice = "Creative Arts"}
-        "5" {$DepartmentChoice = "Executive Team"}
-        "6" {$DepartmentChoice = "Facilities"}
-        "7" {$DepartmentChoice = "Family Life"}
-        "8" {$DepartmentChoice = "Student Ministries"}
-    }
+            "1" {$DepartmentChoice = "Adult Ministries"}
+            "2" {$DepartmentChoice = "Business Operations"}
+            "3" {$DepartmentChoice = "Communications"}
+            "4" {$DepartmentChoice = "Creative Arts"}
+            "5" {$DepartmentChoice = "Executive Team"}
+            "6" {$DepartmentChoice = "Facilities"}
+            "7" {$DepartmentChoice = "Family Life"}
+            "8" {$DepartmentChoice = "Student Ministries"}
+        }
         Write-Host "You selected "$DepartmentChoice". Is this what you want? (Y or N): " -ForegroundColor Yellow -NoNewline
-    $NewDepartmentConfirmation = Read-Host
-    $NewDepartmentConfirmation = $NewDepartmentConfirmation.ToLower()
-    If ($NewDepartmentConfirmation -eq "y")
+        $NewDepartmentConfirmation = Read-Host
+        $NewDepartmentConfirmation = $NewDepartmentConfirmation.ToLower()
+        If ($NewDepartmentConfirmation -eq "y")
         {
             $NewDepartment.Value = $DepartmentChoice
             $NewDepartmentVerified = $true
@@ -300,7 +310,7 @@ function GetDepartment( [ref]$NewFirstName, [ref]$NewDepartment )
 }
 
 
-function GetSupervisor( [ref]$NewFirstName, [ref]$NewSupervisor )
+function GetSupervisor( [ref]$NewFirstName, [ref]$NewSupervisor, [ref]$NewSupervisorFullname)
 {
     $SupervisorVerified = $false
     $UserName = $NewFirstName.Value
@@ -321,6 +331,7 @@ function GetSupervisor( [ref]$NewFirstName, [ref]$NewSupervisor )
                 $SupervisorConfirmation = $SupervisorConfirmation.ToLower()
                 If ($SupervisorConfirmation -eq "y")
                 {
+                    $NewSupervisorFullname.Value = $SupervisorName
                     $NewSupervisor.Value = $SearchResult.SamAccountName
                     $SupervisorVerified = $true
                 }
@@ -347,5 +358,16 @@ function GetSupervisor( [ref]$NewFirstName, [ref]$NewSupervisor )
     Until ($SupervisorVerified -eq $true)
 }
 
+function GetJobTitle ( [ref]$NewFirstName, [ref]$NewJobTitle )
+{
+    $UserName = $NewFirstName.Value
+    Do
+    {
+        Write-Host "What is $Username's job title? " -NoNewline -ForegroundColor Yellow
+        $InputJobTitle = Read-Host
+    }
+    Until ($InputJobTitle -ne [string]::Empty)
+    $NewJobTitle.Value = $InputJobTitle
+}
 
-    main
+CollectInfo
