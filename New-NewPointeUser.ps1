@@ -5,6 +5,7 @@ New-Variable -Name NewUserName
 New-Variable -Name NewMI
 New-Variable -Name NewWorkPhone
 New-Variable -Name NewWorkPhoneE164
+New-Variable -Name NewWorkPhoneLast4
 New-Variable -Name NewMobilePhone
 New-Variable -Name NewEmailAddress1
 New-Variable -Name NewEmailAddress2
@@ -20,25 +21,32 @@ New-Variable -Name NewUPN
 #Our primary function. Everything will run from here.
 function Primary
 {
- #Set variables that we'll need to pass between functions.
+   #Set variables that we'll need to pass between functions.
 
 
 
- #Import the Active Directory module 
- Import-Module ActiveDirectory
+   #Import the Active Directory module 
+   Import-Module ActiveDirectory
 
- CollectInfo ([ref]$CreatingExchangeMailbox) ([ref]$CreatingLyncAccount)
+   CollectInfo ([ref]$CreatingExchangeMailbox) ([ref]$CreatingLyncAccount)
 
- Write-Host "`n"
- $ReadyToGo = Read-Host "Are you ready to do this? (y/n)"
- If ($ReadyToGo -eq "y")
- {
+   Write-Host "`n"
+   $ReadyToGo = Read-Host "Are you ready to do this? (y/n)"
+   If ($ReadyToGo -eq "y")
+   {
     Write-Host "`nAlright, let's do this!`n" -ForegroundColor Green
     
     CreateADAccount ([ref]$NewUserName) ([ref]$NewFirstName) ([ref]$NewMI) ([ref]$NewLastName) ([ref]$NewDisplayName) ([ref]$NewJobTitle) ([ref]$NewDepartment) ([ref]$NewOffice) ([ref]$NewSupervisor) ([ref]$NewWorkPhone) ([ref]$NewMobilePhone) ([ref]$NewUPN)
     If ($CreatingExchangeMailbox -eq "y")
     {
         CreateExchangeMailbox ([ref]$NewUPN) ([ref]$NewEmailAddress1) ([ref]$NewEmailAddress2)
+    }
+    If ($CreatingLyncAccount -eq "y") {
+        CreateLyncAccount
+    }
+    If ($CreatingLyncAccount -eq "y") {
+        Sleep -Seconds 120
+        EnableUM
     }
 
 }
@@ -95,7 +103,7 @@ function CollectInfo ([ref]$CreatingExchangeMailbox, [ref]$CreatingLyncAccount)
     $CreatingLyncAccount.Value = $CreatingLyncAccountChoice
     If ($CreatingLyncAccountChoice -eq "y")
     {
-        GetWorkPhone ([ref]$NewFirstName) ([ref]$NewWorkPhone) ([ref]$NewWorkPhoneE164)
+        GetWorkPhone ([ref]$NewWorkPhone) ([ref]$NewWorkPhoneE164) ([ref]$NewWorkPhoneLast4)
         GetMobilePhone ([ref]$NewFirstName) ([ref]$NewMobilePhone)  
     }
 
@@ -120,6 +128,7 @@ function CollectInfo ([ref]$CreatingExchangeMailbox, [ref]$CreatingLyncAccount)
     Write-Host "Secondary Email Address: $NewEmailAddress2"
     Write-Host "Work Phone: $NewWorkPhone"
     Write-Host "Work Phone (E164): $NewWorkPhoneE164"
+    Write-Host "Work Phone Last 4: $NewWorkPhoneLast4"
     Write-Host "Mobile Phone: $NewMobilePhone"
 
 }
@@ -192,12 +201,11 @@ function GetUserName( [ref]$NewFirstName, [ref]$NewLastName, [ref]$NewMI, [ref]$
     }
 }
 
-function GetWorkPhone( [ref]$NewFirstName, [ref]$NewWorkPhone, [ref]$NewWorkPhoneE164 )
+function GetWorkPhone( [ref]$NewWorkPhone, [ref]$NewWorkPhoneE164, [ref]$NewWorkPhoneLast4 )
 {
-    $UserName = $NewFirstName.Value
     $WorkPhoneVerified = $false
     Do {
-        Write-Host "Work phone number for $UserName -- Format should be XXX-XXX-XXXX (or leave blank for none): " -ForegroundColor White -NoNewline
+        Write-Host "Work phone number for $NewFirstName -- Format should be XXX-XXX-XXXX (or leave blank for none): " -ForegroundColor White -NoNewline
         $InputWorkPhone = Read-Host
         If ($InputWorkPhone -ne [string]::Empty){
             $NewWorkPhoneAreaCode = $InputWorkPhone.Substring(0,3)
@@ -212,6 +220,7 @@ function GetWorkPhone( [ref]$NewFirstName, [ref]$NewWorkPhone, [ref]$NewWorkPhon
                 $WorkPhoneVerified = $true
                 Write-Host "$WorkPhoneCompare is unique. Good to go!" -ForegroundColor Green
                 $NewWorkPhoneE164.Value = "tel:+1" + $NewWorkPhoneAreaCode + $NewWorkPhoneExchange + $NewWorkPhoneExt
+                $NewWorkPhoneLast4.Value = $NewWorkPhoneExt
                 Write-Host "E.164-Formatted phone number will be "$NewWorkPhoneE164.Value -ForegroundColor Yellow
             }
             Else {
@@ -464,7 +473,7 @@ function CreateADAccount ([ref]$NewUserName, [ref]$NewFirstName, [ref]$NewMI, [r
     Write-Host "Creating AD Account ........................... " -NoNewline
     New-ADUser -Name $NewDisplayName.Value -AccountPassword (ConvertTo-SecureString -AsPlainText "Password100" -Force) -Department $NewDepartment.Value -DisplayName $NewDisplayName.Value -GivenName $NewFirstName.Value -UserPrincipalName $NewUPN.Value -Manager $NewSupervisor.Value -MobilePhone $NewMobilePhone.Value -Office $NewOffice.Value -OfficePhone $NewWorkPhone.Value -Company "NewPointe Community Church" -SamAccountName $NewUserName.Value -Surname $NewLastName.Value -Title $NewJobTitle.Value -Enable $true
     Write-Host "Done!" -ForegroundColor Green
-    Write-Host "Waiting 30 seconds for AD to finish up ........ " -NoNewline
+    Write-Host "Waiting 30 seconds for AD to sync up .......... " -NoNewline
     Sleep 30
     Write-Host "Done!" -ForegroundColor Green
 }
@@ -475,20 +484,74 @@ function CreateExchangeMailbox ([ref]$NewUPN, [ref]$NewEmailAddress1, [ref]$NewE
     $UPN = $NewUPN.Value
     $PrimaryEmail = $NewEmailAddress1.Value
     $SecondaryEmail = $NewEmailAddress2.Value
-    Write-Host "Connecting to Exchange Server ................. " -NoNewline
+    Write-Host "Connecting to Exchange Server ................. "
+    #$SessionOption = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
     $ExchangeSession = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://cnt-exchange01.newpointe.loc/PowerShell/ -Authentication Kerberos
     Import-PSSession $ExchangeSession -AllowClobber
     Write-Host "Done!" -ForegroundColor Green
     Write-Host "Creating Mailbox for $NewUserName ............. "
     Enable-Mailbox -Identity $UPN -Database 'cnt-exchange01-db01'
-    Write-Host "Done!" -ForegroundColor Green
-    Write-Host "Adding $NewEmailAddress2 alias ................ "
+    Write-Host "Done! (Primary Email: $PrimaryEmail)" -ForegroundColor Green
+    Write-Host "Adding secondary email alias ................ "
     Set-Mailbox -Identity $UPN -EmailAddresses @{add="$SecondaryEmail"}
-    Write-Host "Done!" -ForegroundColor Green
+    Write-Host "Done! (Secondary Email: $SecondaryEmail)" -ForegroundColor Green
     Write-Host "Enabling Archive .............................. " -ForegroundColor Yellow
     Enable-Mailbox -Identity $UPN -Archive -ArchiveDatabase 'cnt-exchange01-archive01'
-    Write-Host "Applying Standard Retention Policy ............."
+    Write-Host "Applying Standard Retention Policy ........... "
     Set-Mailbox -Identity $UPN -RetentionPolicy 'NewPointe Standard Staff Archival'
+    Write-Host "Done!" -ForegroundColor Green
+}
+
+function CreateLyncAccount () {
+    #Start a PS Session with our Lync Server
+    Write-Host "Connecting to Lync Server ..................... "
+    $Credential = Get-Credential "newpointe\dmast2"
+    $SessionOption = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
+    $LyncSession = New-PSSession -ConnectionUri https://dov-lync1301.newpointe.loc/ocspowershell -Credential $Credential -SessionOption $SessionOption
+    Import-PSSession $LyncSession -AllowClobber
+    Write-Host "Done!" -ForegroundColor Green
+
+    #Determine our RegistrarPool setting by checking to see what campus this person will work at.
+    $HomedFrontEnd = "dov-lync1301.newpointe.loc"
+    $SIPAddress = "sip:" + $NewUPN
+    if ($NewOffice -eq "Millersburg Campus") {
+        $HomedFrontEnd = "mil-lync1301.newpointe.loc"
+    } 
+    If ($NewOffice -eq "Canton Campus") {
+        $HomedFrontEnd = "can-lync1301.newpointe.loc"
+    }
+
+    #Enable the account for Lync.
+    Write-Host "Creating Lync account ......................... " -NoNewline
+    Enable-CsUser -Identity $NewUPN -RegistrarPool $HomedFrontEnd -SipAddressType SamAccountName  -SipDomain newpointe.org
+    Write-Host "Done!" -ForegroundColor Green
+    #Sleep a bit, because Active Directory
+    Write-Host "Waiting 60 seconds for AD to sync up .......... " -NoNewline
+    Sleep 60
+    Write-Host "Done!" -ForegroundColor Green
+    #Enable the account for Enterprise Voice and assign a phone number.
+    Write-Host "Enabling EV and Phone Number................... " -NoNewline
+    Set-CsUser -Identity $NewUPN -EnterpriseVoiceEnabled $true -LineURI $NewWorkPhoneE164
+    Write-Host "Done!" -ForegroundColor Green
+    if ($NewOffice -eq "Central Services") {
+        Write-Host "Assigning Voice Policy for CNT Users........... " -NoNewline
+        Grant-CsVoicePolicy -Identity $NewUPN -PolicyName "CNT Users"
+    }
+    Write-Host "Done!" -ForegroundColor Green
+    Write-Host "Setting Conferencing PIN....................... " -NoNewline
+    Set-CSClientPin -Identity $NewUPN -Pin $NewWorkPhoneLast4
+    Write-Host "`n"
+    Write-Host "$NewUPN"
+    Write-Host "$NewOffice"
+    Write-Host "$SIPAddress"
+    Write-Host "$HomedFrontEnd"
+    Write-Host "$NewWorkPhoneE164"
+    Write-Host "$NewWorkPhoneLast4"
+}
+
+function EnableUM () {
+    Write-Host "Enabling Unified Messaging..................... " -NoNewline
+    Enable-UMMailbox -Identity $NewUPN -UMMailboxPolicy "MSLyncDialPlan Policy" -Pin $NewWorkPhoneLast4
     Write-Host "Done!" -ForegroundColor Green
 }
 
