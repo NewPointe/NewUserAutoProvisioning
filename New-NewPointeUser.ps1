@@ -486,44 +486,44 @@ function CreateExchangeMailbox ([ref]$NewUPN, [ref]$NewEmailAddress1, [ref]$NewE
     $SecondaryEmail = $NewEmailAddress2.Value
     Write-Host "Connecting to Exchange Server ................. "
     #$SessionOption = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
-    $ExchangeSession = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://cnt-exchange01.newpointe.loc/PowerShell/ -Authentication Kerberos
+    $ExchangeSession = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://<ExchangeServer>/PowerShell/ -Authentication Kerberos
     Import-PSSession $ExchangeSession -AllowClobber
     Write-Host "Done!" -ForegroundColor Green
     Write-Host "Creating Mailbox for $NewUserName ............. "
-    Enable-Mailbox -Identity $UPN -Database 'cnt-exchange01-db01'
+    Enable-Mailbox -Identity $UPN -Database '<ExchangePrimaryDB>'
     Write-Host "Done! (Primary Email: $PrimaryEmail)" -ForegroundColor Green
     Write-Host "Adding secondary email alias ................ "
     Set-Mailbox -Identity $UPN -EmailAddresses @{add="$SecondaryEmail"}
     Write-Host "Done! (Secondary Email: $SecondaryEmail)" -ForegroundColor Green
     Write-Host "Enabling Archive .............................. " -ForegroundColor Yellow
-    Enable-Mailbox -Identity $UPN -Archive -ArchiveDatabase 'cnt-exchange01-archive01'
+    Enable-Mailbox -Identity $UPN -Archive -ArchiveDatabase '<ExchangeArchiveDB>'
     Write-Host "Applying Standard Retention Policy ........... "
-    Set-Mailbox -Identity $UPN -RetentionPolicy 'NewPointe Standard Staff Archival'
+    Set-Mailbox -Identity $UPN -RetentionPolicy '<YourRetentionPolicy>'
     Write-Host "Done!" -ForegroundColor Green
 }
 
 function CreateLyncAccount () {
     #Start a PS Session with our Lync Server
     Write-Host "Connecting to Lync Server ..................... "
-    $Credential = Get-Credential "newpointe\dmast2"
+    $Credential = Get-Credential "<YourLyncAdminUsername>"
     $SessionOption = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
-    $LyncSession = New-PSSession -ConnectionUri https://dov-lync1301.newpointe.loc/ocspowershell -Credential $Credential -SessionOption $SessionOption
+    $LyncSession = New-PSSession -ConnectionUri https://LyncFEServer/ocspowershell -Credential $Credential -SessionOption $SessionOption
     Import-PSSession $LyncSession -AllowClobber
     Write-Host "Done!" -ForegroundColor Green
 
     #Determine our RegistrarPool setting by checking to see what campus this person will work at.
-    $HomedFrontEnd = "dov-lync1301.newpointe.loc"
+    $HomedFrontEnd = "<StandardFE>"
     $SIPAddress = "sip:" + $NewUPN
     if ($NewOffice -eq "Millersburg Campus") {
-        $HomedFrontEnd = "mil-lync1301.newpointe.loc"
+        $HomedFrontEnd = "<MIL FE>"
     } 
     If ($NewOffice -eq "Canton Campus") {
-        $HomedFrontEnd = "can-lync1301.newpointe.loc"
+        $HomedFrontEnd = "<CAN FE>"
     }
 
     #Enable the account for Lync.
     Write-Host "Creating Lync account ......................... " -NoNewline
-    Enable-CsUser -Identity $NewUPN -RegistrarPool $HomedFrontEnd -SipAddressType SamAccountName  -SipDomain newpointe.org
+    Enable-CsUser -Identity $NewUPN -RegistrarPool $HomedFrontEnd -SipAddressType SamAccountName  -SipDomain domain.com
     Write-Host "Done!" -ForegroundColor Green
     #Sleep a bit, because Active Directory
     Write-Host "Waiting 60 seconds for AD to sync up .......... " -NoNewline
